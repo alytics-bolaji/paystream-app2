@@ -1,0 +1,43 @@
+name: Security Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+# ── Job 1: Secret Scanning ──────────────────────
+  secret-scan:
+    name: Detect Secrets (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Job 2: SCA / Dependency Audit ───────────────
+  dependency-audit:
+    name: Dependency Audit (npm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm ci
+      - run: npm audit --audit-level=high
+
+  # ── Job 3: SAST ──────────────────────────────────
+  sast:
+    name: Static Analysis (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Semgrep
+        run: pip install semgrep
+      - name: Run Semgrep scan
+        run: semgrep scan --config .semgrep/secrets.yml --error .
